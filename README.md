@@ -1,170 +1,138 @@
-# Local AI Stack
+<p align="center">
+  <strong>English</strong> · <a href="README.zh-CN.md">中文</a>
+</p>
 
-[English](README.md) | [中文](README.zh-CN.md)
+<h1 align="center">Local AI Stack</h1>
 
-![Local AI Stack architecture](docs/assets/stack-architecture.svg)
+<p align="center">
+  <strong>A lightweight LAN-first AI workbench for local text and image models</strong><br>
+  Web console, OpenAI-compatible gateway, lazy model workers, and a registry-driven path for adding more local backends.
+</p>
 
-This project currently deploys `Qwen/Qwen3.6-27B` from ModelScope behind an OpenAI-compatible text chat API, while keeping the gateway and registry generic for additional local models.
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3"></a>
+  <a href="#api-surface"><img src="https://img.shields.io/badge/API-OpenAI--compatible-4C78A8?style=flat-square" alt="OpenAI-compatible API"></a>
+  <a href="#quick-start"><img src="https://img.shields.io/badge/Mode-LAN%20local-2CA02C?style=flat-square" alt="LAN local mode"></a>
+  <a href="#runtime-boundaries"><img src="https://img.shields.io/badge/GPU-lazy%20unload-F28E2B?style=flat-square" alt="Lazy unload for GPU memory"></a>
+</p>
 
-The public API process is a lightweight proxy on port `8000`. It starts an internal model worker only when a chat request arrives, then stops that worker after `IDLE_UNLOAD_SECONDS` seconds without active requests. This fully releases GPU memory when idle.
+<p align="center">
+  <a href="#overview">Overview</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="#api-surface">API</a> ·
+  <a href="#model-registry">Registry</a> ·
+  <a href="#operations">Operations</a> ·
+  <a href="#community-projects">References</a> ·
+  <a href="#license">License</a>
+</p>
 
-## Current endpoint
+> [!IMPORTANT]
+> This repository is a local deployment scaffold. Model weights under `models/`, generated images under `outputs/`, logs, and virtual environments are intentionally excluded from Git.
 
-- LAN base URL: `http://<LAN_IP>:8000/v1`
-- Local base URL: `http://127.0.0.1:8000/v1`
-- API key: `local-dev-key`
-- Model name: `Qwen/Qwen3.6-27B`
+<a id="overview"></a>
+## Overview
 
-## Files
+Local AI Stack provides a small local workbench for a single-machine or LAN GPU setup. It currently exposes a Qwen text model and a Qwen image model through direct OpenAI-compatible proxies, plus a lightweight Web UI that also acts as a unified gateway for external clients.
 
-- Model: `models/Qwen3.6-27B`
-- Public proxy: `proxy_qwen36.py`
-- Internal worker: `serve_qwen36.py`
-- Download script: `download_model.py`
-- Start foreground: `./start.sh`
-- Start background: `./start_background.sh`
-- Stop: `./stop.sh`
+| Goal | Implemented approach | Boundary |
+| --- | --- | --- |
+| Use local models from a browser or external tools | `web_ui.py` serves the Web UI and `/v1` gateway on port `8080` | Default API key is development-only |
+| Avoid keeping large workers resident | Text and image proxies start workers on first request and terminate them after idle timeout | CUDA memory is released by process termination |
+| Keep model routing editable | `model_registry.json` defines chat/image models, endpoints, health checks, defaults, and feature tags | Additional backends must expose compatible APIs |
+| Preserve a path to mature stacks | Architecture notes map this project to Open WebUI, LiteLLM, vLLM, SGLang, ComfyUI, and LocalAI patterns | References are product/architecture guidance, not copied code |
 
+Current default services:
 
+| Layer | Local URL | LAN URL | Notes |
+| --- | --- | --- | --- |
+| Web console | `http://127.0.0.1:8080` | `http://<LAN_IP>:8080` | Browser console and Stack status page |
+| Unified gateway | `http://127.0.0.1:8080/v1` | `http://<LAN_IP>:8080/v1` | External tools can use this single base URL |
+| Text proxy | `http://127.0.0.1:8000/v1` | `http://<LAN_IP>:8000/v1` | Lazy Qwen text worker |
+| Image proxy | `http://127.0.0.1:8001/v1` | `http://<LAN_IP>:8001/v1` | Lazy Qwen image worker |
 
+Default API key: `local-dev-key`.
 
-## Visual overview
+<a id="architecture"></a>
+## Architecture
 
-![Console overview](docs/assets/console-overview.svg)
+<p align="center">
+  <a href="docs/assets/stack-architecture.svg">
+    <img src="docs/assets/stack-architecture.svg" alt="Local AI Stack architecture" width="92%">
+  </a>
+</p>
+<p align="center"><em>Figure 1 | The stack separates browser UI, unified gateway, lazy model proxies, workers, and operational status surfaces.</em></p>
 
-![Unified gateway request flow](docs/assets/request-flow.svg)
+<p align="center">
+  <a href="docs/assets/console-overview.svg">
+    <img src="docs/assets/console-overview.svg" alt="Local AI Stack console overview" width="92%">
+  </a>
+</p>
+<p align="center"><em>Figure 2 | The Web UI provides model selection, chat/image entry points, and stack health visibility.</em></p>
 
-## On-demand start
+<details>
+<summary><strong>Open request-flow diagram</strong></summary>
+<br>
 
-To avoid keeping the API proxies resident all the time, start the Web UI and both APIs only when needed:
+<p align="center">
+  <a href="docs/assets/request-flow.svg">
+    <img src="docs/assets/request-flow.svg" alt="Unified gateway request flow" width="92%">
+  </a>
+</p>
+<p align="center"><em>Figure 3 | External clients can call one gateway, which routes chat and image requests to registered local backends.</em></p>
+
+</details>
+
+The service layering is documented in [docs/STACK.md](docs/STACK.md). Integration notes and local reference snapshots are kept under [integrations/](integrations/) and [references/](references/).
+
+<a id="quick-start"></a>
+## Quick Start
+
+Create the local Python environment expected by the scripts:
+
+```bash
+git clone https://github.com/rudykon/ai-stack.git
+cd ai-stack
+
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+Download or place model weights under `models/`. The text helper downloads the default Qwen text model from ModelScope:
+
+```bash
+.venv/bin/python download_model.py
+```
+
+Start the Web UI, unified gateway, text proxy, and image proxy on demand:
 
 ```bash
 ./api.sh
 ```
 
-Then open `http://127.0.0.1:8080`. For another device on the same network, use the LAN address printed by `./api.sh`. Replace `<LAN_IP>` in examples with that address. Keep that terminal open while using the Web UI or APIs. Press `Ctrl+C` to stop the Web UI, both API proxies, and any worker they started. Quick helpers:
+Then open:
+
+```text
+Web UI:      http://127.0.0.1:8080
+Gateway:     http://127.0.0.1:8080/v1
+LAN Web UI:  http://<LAN_IP>:8080
+LAN Gateway: http://<LAN_IP>:8080/v1
+API key:     local-dev-key
+```
+
+Keep the terminal open while using the stack. Press `Ctrl+C` to stop the Web UI, both API proxies, and any worker they started.
+
+Quick helpers:
 
 ```bash
 ./api.sh status
 ./api.sh stop
 ```
 
+<a id="api-surface"></a>
+## API Surface
 
-## Web UI and model switching
-
-The Web UI runs on port `8080` by default and calls the local OpenAI-compatible APIs through `web_ui.py`, so the browser does not need to hold the API key directly.
-
-Model choices are loaded from `model_registry.json`. To add another OpenAI-compatible model later, add another item with:
-
-```json
-{
-  "id": "provider/model-name",
-  "label": "Display name",
-  "type": "chat",
-  "base_url": "http://127.0.0.1:8002/v1",
-  "api_key_env": "API_KEY",
-  "default": false
-}
-```
-
-Use `"type": "image"` for image generation models. Restart `./api.sh` after editing the registry.
-
-## User systemd service
-
-The service can also be managed as a user unit, but the on-demand `./api.sh` flow avoids keeping it resident:
-
-```bash
-systemctl --user status qwen36-api.service
-systemctl --user stop qwen36-api.service
-```
-
-## Health
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
-`worker_running:false` means the model worker is stopped and GPU memory should be near baseline.
-
-## Example
-
-```bash
-curl http://127.0.0.1:8000/v1/chat/completions \
-  -H 'Content-Type: application/json' \
-  -H 'Authorization: Bearer local-dev-key' \
-  -d '{
-    "model": "Qwen/Qwen3.6-27B",
-    "messages": [{"role": "user", "content": "Say OK in one word."}],
-    "max_tokens": 8,
-    "temperature": 0,
-    "extra_body": {"chat_template_kwargs": {"enable_thinking": false}}
-  }'
-```
-
-## Idle behavior
-
-Default idle timeout is 300 seconds:
-
-```bash
-IDLE_UNLOAD_SECONDS=60 ./start.sh
-```
-
-When the timeout is reached, the proxy terminates the internal worker process. This is intentional: process termination is the reliable way to release CUDA memory on this hardware.
-
-The wrapper currently targets text chat. The upstream model is multimodal; for image/video API support use the official `transformers serve` or vLLM/SGLang on compatible hardware.
-
-
-## Qwen-Image text-to-image API
-
-`Qwen/Qwen-Image-2512` is downloaded in `models/Qwen-Image-2512` and served through an OpenAI-compatible Images API.
-
-- LAN base URL: `http://<LAN_IP>:8001/v1`
-- Local base URL: `http://127.0.0.1:8001/v1`
-- API key: `local-dev-key`
-- Image model name: `Qwen/Qwen-Image-2512`
-- Public proxy: `proxy_qwen_image.py`
-- Internal worker: `qwen_image_worker.py`
-- Start: `./start_qwen_image.sh`
-- Stop: `./stop_qwen_image.sh`
-
-The image API also uses lazy loading. The proxy starts the worker on the first image request and stops it after `IMAGE_IDLE_UNLOAD_SECONDS=300` seconds of inactivity. On this Tesla P40 machine, the working configuration is `IMAGE_DTYPE=float32` plus `IMAGE_DEVICE_MAP=sequential`; FP16 generated black images because Qwen-Image-2512 expects BF16-class numerics, which P40 does not support.
-
-```bash
-systemctl --user status qwen-image-api.service
-systemctl --user stop qwen-image-api.service
-```
-
-Health check:
-
-```bash
-curl http://127.0.0.1:8001/health
-```
-
-Example request:
-
-```bash
-curl http://127.0.0.1:8001/v1/images/generations \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer local-dev-key" \
-  -d "{\"model\":\"Qwen/Qwen-Image-2512\",\"prompt\":\"A red circle on a white background\",\"size\":\"512x512\",\"n\":1,\"response_format\":\"b64_json\",\"extra_body\":{\"num_inference_steps\":12,\"true_cfg_scale\":4.0,\"seed\":42}}"
-```
-
-Generated image files are saved under `outputs/qwen-image/`. The quick smoke test is:
-
-```bash
-.venv/bin/python smoke_test_qwen_image.py
-```
-
-## Layered local AI stack
-
-The Web UI now also acts as a lightweight LiteLLM-style gateway. In addition to the existing direct model endpoints, external tools can use one unified OpenAI-compatible base URL:
-
-```bash
-http://127.0.0.1:8080/v1
-http://<LAN_IP>:8080/v1
-```
-
-Supported gateway endpoints:
+The unified gateway supports:
 
 ```text
 GET  /v1/models
@@ -172,43 +140,142 @@ POST /v1/chat/completions
 POST /v1/images/generations
 ```
 
-The Stack tab in the Web UI shows the active layers, model health, and copyable Open WebUI/LiteLLM/curl snippets.
-
-## Relationship to community projects
-
-This project references community projects for product shape and architecture layering; it does not copy their code. The mapping is:
-
-- UI layer: Open WebUI informs the local model console, multi-model entry points, and OpenAI-compatible client experience [1].
-- Gateway layer: LiteLLM informs the unified API gateway, model routing, and external tool integration pattern [2].
-- Serving layer: vLLM and SGLang inform the high-throughput OpenAI-compatible serving direction for a future text worker replacement [3,4].
-- Image and multi-modal layer: ComfyUI informs image workflow design, while LocalAI informs local multi-modal API aggregation [5,6].
-
-Local reference snapshots and integration notes are in:
-
-```text
-docs/STACK.md
-integrations/
-references/
-```
-
-### Reference projects
-
-[1] Open WebUI. *open-webui/open-webui*. GitHub repository. <https://github.com/open-webui/open-webui>. Accessed: 2026-06-24.
-
-[2] LiteLLM. *BerriAI/litellm*. GitHub repository. <https://github.com/BerriAI/litellm>. Accessed: 2026-06-24.
-
-[3] vLLM. *vllm-project/vllm*. GitHub repository. <https://github.com/vllm-project/vllm>. Accessed: 2026-06-24.
-
-[4] SGLang. *sgl-project/sglang*. GitHub repository. <https://github.com/sgl-project/sglang>. Accessed: 2026-06-24.
-
-[5] ComfyUI. *Comfy-Org/ComfyUI*. GitHub repository. <https://github.com/Comfy-Org/ComfyUI>. Accessed: 2026-06-24.
-
-[6] LocalAI. *mudler/LocalAI*. GitHub repository. <https://github.com/mudler/LocalAI>. Accessed: 2026-06-24.
-
-Gateway smoke test:
+Text example through the gateway:
 
 ```bash
-./api.sh
-.venv/bin/python smoke_test_gateway.py
+curl http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer local-dev-key' \
+  -d '{
+    "model": "Qwen/Qwen3.6-27B",
+    "messages": [{"role": "user", "content": "Say OK in one word."}],
+    "max_tokens": 8,
+    "temperature": 0
+  }'
 ```
 
+Image example through the gateway:
+
+```bash
+curl http://127.0.0.1:8080/v1/images/generations \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer local-dev-key' \
+  -d '{
+    "model": "Qwen/Qwen-Image-2512",
+    "prompt": "A red circle on a white background",
+    "size": "512x512",
+    "n": 1,
+    "response_format": "b64_json"
+  }'
+```
+
+Direct proxy endpoints remain available when needed:
+
+```text
+Text API:  http://127.0.0.1:8000/v1
+Image API: http://127.0.0.1:8001/v1
+```
+
+<a id="model-registry"></a>
+## Model Registry
+
+Model choices are loaded from [model_registry.json](model_registry.json). The current registry includes:
+
+| Model | Type | Proxy | Features |
+| --- | --- | --- | --- |
+| `Qwen/Qwen3.6-27B` | Chat | `http://127.0.0.1:8000/v1` | OpenAI chat, streaming, lazy unload, thinking toggle |
+| `Qwen/Qwen-Image-2512` | Image | `http://127.0.0.1:8001/v1` | OpenAI images, seed control, lazy unload, local gallery |
+
+Add another OpenAI-compatible backend by extending the registry:
+
+```json
+{
+  "id": "provider/model-name",
+  "label": "Display name",
+  "type": "chat",
+  "runner": "vllm",
+  "base_url": "http://127.0.0.1:8100/v1",
+  "health_url": "http://127.0.0.1:8100/health",
+  "api_key_env": "API_KEY",
+  "default": false,
+  "features": ["openai-chat", "streaming"]
+}
+```
+
+Use `"type": "image"` for image-generation backends that expose the OpenAI Images API surface.
+
+<a id="operations"></a>
+## Operations
+
+Health checks:
+
+```bash
+curl http://127.0.0.1:8080/api/health
+curl http://127.0.0.1:8080/api/stack
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8001/health
+```
+
+`worker_running:false` means the corresponding model worker is stopped and GPU memory should be near baseline.
+
+Smoke tests that trigger model loading:
+
+```bash
+.venv/bin/python smoke_test_gateway.py
+.venv/bin/python smoke_test_qwen_image.py
+```
+
+Runtime knobs:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `API_KEY` | `local-dev-key` | Gateway and proxy API key |
+| `WEB_PORT` | `8080` | Web UI and gateway port |
+| `IDLE_UNLOAD_SECONDS` | `300` | Text worker idle unload timeout |
+| `IMAGE_IDLE_UNLOAD_SECONDS` | `300` | Image worker idle unload timeout |
+| `IMAGE_DTYPE` | `float32` | P40-compatible image precision default |
+| `IMAGE_DEVICE_MAP` | `sequential` | P40-compatible image offload default |
+
+<a id="runtime-boundaries"></a>
+## Runtime Boundaries
+
+- `models/`, `.venv/`, `logs/`, `outputs/`, `github_token.json`, downloaded archives, and local reference checkouts are ignored by Git.
+- The default API key is for local development. Change it before exposing the stack beyond a trusted LAN.
+- Qwen-Image uses `IMAGE_DTYPE=float32` and `IMAGE_DEVICE_MAP=sequential` by default on the Tesla P40 path to avoid FP16 black-image failures.
+- Worker termination is intentional: on this hardware it is the reliable way to release CUDA memory after idle periods.
+- The current text path is a lightweight Transformers worker. vLLM or SGLang can be added later as registered serving backends.
+
+<a id="community-projects"></a>
+## Community Projects
+
+This project references community projects for product shape and architecture layering; it does not copy their code.
+
+| Layer | Local implementation | Reference direction |
+| --- | --- | --- |
+| UI | `web/` + `web_ui.py` | Open WebUI-style local console and model entry points |
+| Gateway | `/v1` routes in `web_ui.py` | LiteLLM-style model routing and external tool integration |
+| LLM serving | `proxy_qwen36.py` + `serve_qwen36.py` | Future vLLM/SGLang-compatible serving boundary |
+| Image workflow | `proxy_qwen_image.py` + `qwen_image_worker.py` | ComfyUI/LocalAI-style local image or multimodal aggregation path |
+| Operations | `logs/`, `outputs/`, `/api/stack`, `/health` | Visible status without forcing model load |
+
+Reference snapshots and integration notes are in [docs/STACK.md](docs/STACK.md), [integrations/](integrations/), and [references/](references/).
+
+<a id="repository-map"></a>
+## Repository Map
+
+| Path | Purpose |
+| --- | --- |
+| `api.sh` | On-demand launcher for Web UI, text proxy, and image proxy |
+| `web_ui.py` | Web UI backend and unified OpenAI-compatible gateway |
+| `web/` | Browser console frontend |
+| `model_registry.json` | Model, runner, health, defaults, and feature registry |
+| `proxy_qwen36.py`, `serve_qwen36.py` | Lazy text API proxy and internal worker |
+| `proxy_qwen_image.py`, `qwen_image_worker.py` | Lazy image API proxy and internal worker |
+| `download_model.py`, `download_qwen_image.py` | ModelScope download helpers |
+| `smoke_test*.py` | Gateway and model-loading smoke tests |
+| `docs/`, `integrations/`, `references/` | Stack notes, integration examples, and reference snapshots |
+
+<a id="license"></a>
+## License
+
+No project-level license file is currently included in this repository. Add a license before redistributing or reusing the code beyond your own controlled environment. Third-party models and dependencies retain their own terms.
