@@ -2,6 +2,10 @@
   <a href="README.md">English</a> · <strong>中文</strong>
 </p>
 
+<p align="center">
+  <img src="docs/brand-mark.svg" width="520" alt="Local AI Stack 品牌标识">
+</p>
+
 <h1 align="center">Local AI Stack</h1>
 
 <p align="center">
@@ -279,3 +283,4 @@ curl http://127.0.0.1:8001/health
 ## 许可证
 
 本仓库目前没有项目级许可证文件。若要在自有受控环境之外分发或复用代码，应先添加明确许可证。第三方模型和依赖仍遵循各自条款。
+

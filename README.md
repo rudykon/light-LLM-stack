@@ -2,6 +2,10 @@
   <strong>English</strong> · <a href="README.zh-CN.md">中文</a>
 </p>
 
+<p align="center">
+  <img src="docs/brand-mark.svg" width="520" alt="Local AI Stack brand mark">
+</p>
+
 <h1 align="center">Local AI Stack</h1>
 
 <p align="center">
@@ -279,3 +283,4 @@ Reference snapshots and integration notes are in [docs/STACK.md](docs/STACK.md),
 ## License
 
 No project-level license file is currently included in this repository. Add a license before redistributing or reusing the code beyond your own controlled environment. Third-party models and dependencies retain their own terms.
+
