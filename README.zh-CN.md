@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/brand-mark.svg" width="520" alt="Local AI Stack 品牌标识">
+  <img src="docs/light-LLM-stack.png" width="520" alt="Local AI Stack 品牌标识">
 </p>
 
 <h1 align="center">Local AI Stack</h1>
