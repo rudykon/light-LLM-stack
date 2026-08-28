@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/light-LLM-stack.png" width="520" alt="Local AI Stack brand mark">
+  <img src="docs/light-LLM-stack.svg" width="520" alt="Local AI Stack brand mark">
 </p>
 
 <h1 align="center">Local AI Stack</h1>
